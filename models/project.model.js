@@ -118,6 +118,19 @@ async function deleteProject(id) {
   return result.affectedRows;
 }
 
+async function updateProjectStatus(id, status) {
+  const [result] = await pool.query(
+    `
+    UPDATE projects
+    SET status = ?, updated_at = NOW()
+    WHERE id = ?
+    `,
+    [status, id]
+  );
+
+  return result.affectedRows;
+}
+
 module.exports = {
   getAllProjects,
   getProjectsByCategory,
@@ -125,4 +138,5 @@ module.exports = {
   createProject,
   updateProject,
   deleteProject,
+   updateProjectStatus,
 };

@@ -1,6 +1,8 @@
 const Project = require('../models/project.model');
 const Category = require('../models/category.model');
 const slugify = require('../utils/slugify');
+const allowedStatuses = ['submitted', 'published', 'funded', 'payout_pending', 'payout_approved', 'payout_paid', 'rejected'];
+
 
 exports.getProjects = async (req, res) => {
   try {
@@ -164,5 +166,32 @@ exports.deleteProject = async (req, res) => {
   } catch (err) {
     console.error('deleteProject error', err);
     res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+  }
+};
+
+exports.updateProjectStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Status tidak valid.' });
+    }
+
+    const existing = await Project.getProjectById(id);
+    if (!existing) {
+      return res.status(404).json({ message: 'Proyek tidak ditemukan.'});
+    }
+
+    const affected = await Project.updateProjectStatus(id, status);
+    if (!affected) {
+      return res.status(500).json({ message: 'Gagal mengupdate status proyek.'});
+    }
+
+    const updated = await Project.getProjectById(id);
+    return res.json(updated);
+  } catch (err) {
+    console.error('updateProjectStatus error', err);
+    return res.status(500).json({ message: 'Terjadi kesalahan pada server.'});
   }
 };

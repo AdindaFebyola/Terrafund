@@ -314,3 +314,6 @@ app.use('/api/donatur', donaturRoutes);
 const ngoRoutes = require('./routes/ngo.routes');
 app.use('/api/ngo', ngoRoutes);
 module.exports = app;
+
+const adminRoutes = require('./routes/adminRoutes');
+app.use('/api/admin', adminRoutes);
