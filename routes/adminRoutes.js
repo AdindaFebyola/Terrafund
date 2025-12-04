@@ -4,6 +4,7 @@ const router = express.Router();
 const adminController = require('../controllers/adminController'); 
 // PERBAIKAN DI SINI: Gunakan kurung kurawal { } untuk mengambil fungsi 'authenticate' saja
 const { authenticate } = require('../middleware/auth'); 
+const withdrawController = require('../controllers/withdrawController');
 
 // Middleware tambahan: Pastikan yang akses cuma ADMIN
 const verifyAdmin = (req, res, next) => {
@@ -21,5 +22,12 @@ router.get('/projects/pending', authenticate, verifyAdmin, adminController.getPe
 
 // Rute: PUT /api/admin/projects/:projectId/verify
 router.put('/projects/:projectId/verify', authenticate, verifyAdmin, adminController.verifyProject);
+
+// === MANAJEMEN PENCAIRAN DANA (WITHDRAW) ===
+// GET: Lihat daftar request
+router.get('/withdrawals/pending', authenticate, verifyAdmin, withdrawController.getPendingWithdrawals);
+
+// PUT: Setujui (Cairkan) dana
+router.put('/withdrawals/:withdrawId/approve', authenticate, verifyAdmin, withdrawController.approveWithdrawal);
 
 module.exports = router;

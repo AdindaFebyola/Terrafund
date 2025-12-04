@@ -1,3 +1,4 @@
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
@@ -11,8 +12,8 @@ function authenticate(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET); 
-    req.user = payload;
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload; // { id, role, email, ... }
     next();
   } catch (err) {
     console.error('JWT verify error', err.message);
@@ -26,11 +27,20 @@ function requireSelf(role) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    // cek role dulu
     if (role && req.user.role !== role) {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
-    const paramId = Number(req.params.userId);
+    let paramId = req.params.userId || req.params.id;
+
+    if (paramId) {
+      paramId = Number(paramId);
+    } else {
+      paramId = Number(req.user.id);
+      req.params.userId = paramId;
+    }
+
     if (!paramId || paramId !== Number(req.user.id)) {
       return res.status(403).json({ message: 'Tidak boleh mengakses data user lain' });
     }

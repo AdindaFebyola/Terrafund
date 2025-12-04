@@ -85,7 +85,7 @@ app.post('/api/register', async (req, res) => {
       });
     }
 
-    const allowedRoles = ['donatur', 'relawan', 'ngo'];
+    const allowedRoles = ['donatur', 'relawan', 'ngo', 'admin'];
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({ status: 'Gagal', message: 'Role tidak valid.' });
     }
@@ -103,7 +103,7 @@ app.post('/api/register', async (req, res) => {
       wallet_address = wallet.address.toLowerCase();
       console.log('🔑 Wallet baru untuk', role, email);
       console.log('Address :', wallet_address);
-      console.log('PrivKey :', wallet.privateKey); // buat demo/metamask (jangan di-production)
+      console.log('PrivKey :', wallet.privateKey);
     }
 
     const [result] = await db.query(
@@ -198,11 +198,14 @@ app.post('/api/notification', async (req, res) => {
         `SELECT 
            d.id,
            d.user_id,
+           d.project_id,
            d.amount,
            d.blockchain_tx_hash,
-           u.wallet_address
+           u.wallet_address,
+           p.token_reward
          FROM donations d
          JOIN users u ON d.user_id = u.id
+         JOIN projects p ON d.project_id = p.id
          WHERE d.order_id = ?`,
         [orderId]
       );
@@ -213,17 +216,27 @@ app.post('/api/notification', async (req, res) => {
         } else if (!donation.wallet_address) {
           console.warn(`Wallet address belum ada untuk user ${donation.user_id}, skip minting.`);
         } else {
-          const txHash = await mintTokenToUser(donation.wallet_address, donation.amount);
-          if (txHash) {
-            await db.query('UPDATE donations SET blockchain_tx_hash = ?, updated_at = NOW() WHERE id = ?', [txHash, donation.id]);
+          const donationAmount = Number(donation.amount) || 0;
+          const tokenRate = Number(donation.token_reward);
+          // token_reward: kelipatan TTK per 1000 rupiah (fallback 1 jika belum di-set)
+          const rewardRate = Number.isFinite(tokenRate) && tokenRate > 0 ? tokenRate : 1;
+          const ttkAmount = Math.floor((donationAmount / 1000) * rewardRate);
 
-            const ttkAmount = Math.floor(donation.amount / 1000); // konversi rupiah -> TTK
-            await db.query(
-              `INSERT INTO wallet_transactions (user_id, tx_code, tx_type, amount, description, status, created_at)
-               VALUES (?, ?, 'reward', ?, ?, 'paid', NOW())`,
-              [donation.user_id, orderId, ttkAmount, 'Reward donasi']
-            );
-            console.log(`Reward on-chain dikirim. Hash: ${txHash}`);
+          if (ttkAmount <= 0) {
+            console.warn(`Reward token tidak dikirim karena rate/amount tidak valid (order ${orderId}).`);
+          } else {
+            // mintTokenToUser mengonversi amountRupiah/1000, jadi kirim amountRupiah ekuivalen
+            const txHash = await mintTokenToUser(donation.wallet_address, ttkAmount * 1000);
+            if (txHash) {
+              await db.query('UPDATE donations SET blockchain_tx_hash = ?, updated_at = NOW() WHERE id = ?', [txHash, donation.id]);
+
+              await db.query(
+                `INSERT INTO wallet_transactions (user_id, tx_code, tx_type, amount, description, status, created_at)
+                 VALUES (?, ?, 'reward', ?, ?, 'paid', NOW())`,
+                [donation.user_id, orderId, ttkAmount, 'Reward donasi']
+              );
+              console.log(`Reward on-chain dikirim. Hash: ${txHash}`);
+            }
           }
         }
       }
